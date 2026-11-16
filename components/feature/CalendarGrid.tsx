@@ -1,0 +1,25 @@
+import { memo, useMemo } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTheme } from '@/hooks/useCalendar';
+import { dateKey, dayStatus, isNonWorking, monthCells, monthNames, weekNames } from '@/services/dateService';
+import type { DayMark } from '@/services/storageService';
+import { spacing, radius, typeScale, type ThemeColors } from '@/constants/theme';
+interface CalendarGridProps { date: Date; cells?: Date[]; selected?: string; marks: Record<string, DayMark>; holidays?: string; compact?: boolean; onSelect?: (date: Date) => void; }
+export const CalendarGrid = memo(function CalendarGrid({ date, cells, selected, marks, holidays, compact = false, onSelect }: CalendarGridProps) {
+  const { colors } = useTheme(); const styles = useMemo(() => makeStyles(colors), [colors]);
+  const days = useMemo(() => cells || monthCells(date), [cells, date.getFullYear(), date.getMonth()]);
+  const today = dateKey(new Date());
+  return <View><FlatList data={weekNames} scrollEnabled={false} numColumns={7} keyExtractor={item => item} renderItem={({ item, index }) => <View style={styles.column}><Text style={[compact ? styles.miniWeekday : styles.weekday, { color: index > 4 ? colors.weekend : colors.subtle }]}>{item}</Text></View>} /><FlatList data={days} scrollEnabled={false} numColumns={7} keyExtractor={item => dateKey(item)} renderItem={({ item }) => {
+    const key = dateKey(item); const inMonth = item.getMonth() === date.getMonth(); const chosen = selected === key; const mark = marks[key]; const holiday = item.getFullYear() === date.getFullYear() ? holidays : undefined;
+    const color = mark?.kind === 'paid' ? colors.paid : mark?.kind === 'weekend' ? colors.weekend : colors.primary;
+    const background = mark?.kind === 'paid' ? colors.paidSoft : mark?.kind === 'weekend' ? colors.weekendSoft : colors.primarySoft;
+    const body = <View style={[compact ? styles.miniCell : styles.cell, mark && inMonth ? { backgroundColor: background } : null, key === today && inMonth ? { borderColor: colors.primary } : null, chosen && !compact ? { backgroundColor: colors.primary } : null, { opacity: inMonth ? 1 : 0.28 }]}><Text style={[compact ? styles.miniNumber : styles.number, { color: chosen && !compact ? colors.onPrimary : isNonWorking(item, holiday) ? colors.weekend : colors.text, fontWeight: mark || key === today ? '700' : '500' }]}>{item.getDate()}</Text>{mark && inMonth ? <View style={[styles.dot, { backgroundColor: chosen && !compact ? colors.onPrimary : color }]} /> : dayStatus(item, holiday) === 2 && inMonth ? <View style={[styles.shortLine, { backgroundColor: chosen && !compact ? colors.onPrimary : colors.weekend }]} /> : <View style={styles.dotSpace} />}</View>;
+    return <View style={styles.column}>{compact ? body : <Pressable accessibilityRole="button" accessibilityState={{ selected: chosen }} accessibilityLabel={`${item.toLocaleDateString('ru-RU')}${mark ? `, ${mark.kind === 'leave' ? 'отгул' : mark.kind === 'paid' ? 'оплачиваемый' : 'выходной'}` : ''}`} hitSlop={4} onPress={() => onSelect?.(item)} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>{body}</Pressable>}</View>;
+  }} /></View>;
+});
+interface MiniMonthProps { date: Date; marks: Record<string, DayMark>; holidays?: string; onPress: () => void; }
+export const MiniMonth = memo(function MiniMonth({ date, marks, holidays, onPress }: MiniMonthProps) {
+  const { colors } = useTheme(); const styles = useMemo(() => makeStyles(colors), [colors]);
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Открыть ${monthNames[date.getMonth()]} ${date.getFullYear()}`} onPress={onPress} style={({ pressed }) => [styles.month, { opacity: pressed ? 0.7 : 1 }]}><Text style={styles.monthTitle}>{monthNames[date.getMonth()]}</Text><CalendarGrid date={date} marks={marks} holidays={holidays} compact /></Pressable>;
+});
+function makeStyles(c: ThemeColors) { return StyleSheet.create({ column: { flex: 1, alignItems: 'stretch' }, weekday: { fontSize: typeScale.small, fontWeight: '600', textAlign: 'center', paddingVertical: spacing.md }, miniWeekday: { fontSize: 9, textAlign: 'center', paddingVertical: spacing.sm }, cell: { height: 48, margin: 2, borderRadius: radius.sm, borderWidth: 1, borderColor: c.surface, alignItems: 'center', justifyContent: 'center', gap: spacing.xs }, miniCell: { height: 23, borderRadius: 5, borderWidth: 1, borderColor: c.surface, alignItems: 'center', justifyContent: 'center' }, number: { fontSize: typeScale.body, includeFontPadding: false }, miniNumber: { fontSize: 10, includeFontPadding: false }, dot: { width: 4, height: 4, borderRadius: 2 }, dotSpace: { height: 4 }, shortLine: { width: 8, height: 2, marginVertical: 1, borderRadius: 1 }, month: { flex: 1, backgroundColor: c.surface, padding: spacing.sm, borderWidth: 1, borderColor: c.border, borderRadius: radius.md }, monthTitle: { fontSize: typeScale.body, color: c.text, fontWeight: '600', padding: spacing.sm, includeFontPadding: false } }); }
